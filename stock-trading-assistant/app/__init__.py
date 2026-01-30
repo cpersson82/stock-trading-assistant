@@ -1,0 +1,3 @@
+"""
+Stock Trading Assistant Application
+"""

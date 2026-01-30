@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block title %}AI Advisor - Stock Trading Assistant{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold">AI Portfolio Advisor</h1>
+            <p class="text-slate-400 text-sm">Ask questions about your portfolio or get investment suggestions</p>
+        </div>
+        
+        {% if not ai_configured %}
+        <div class="px-4 py-2 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 text-sm">
+            ⚠️ AI not configured - Add ANTHROPIC_API_KEY
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Portfolio Summary -->
+    <div class="card p-4">
+        <div class="flex flex-wrap gap-6 text-sm">
+            <div>
+                <span class="text-slate-400">Portfolio Value:</span>
+                <span class="stat-value font-bold ml-2">CHF {{ "{:,.2f}".format(portfolio.total_value_chf) }}</span>
+            </div>
+            <div>
+                <span class="text-slate-400">Cash Available:</span>
+                <span class="stat-value font-bold ml-2">CHF {{ "{:,.2f}".format(portfolio.cash_chf) }}</span>
+            </div>
+            <div>
+                <span class="text-slate-400">Holdings:</span>
+                <span class="ml-2">{{ portfolio.holdings|length }} positions</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Chat Container -->
+    <div class="card p-6">
+        <!-- Chat Messages -->
+        <div id="chatMessages" class="space-y-4 mb-6 max-h-[500px] overflow-y-auto">
+            <div class="flex gap-3">
+                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-400 to-indigo-500 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+                <div class="bg-slate-800 rounded-lg p-4 flex-1">
+                    <p class="text-slate-300">Hello! I'm your AI portfolio advisor. I can help you with:</p>
+                    <ul class="mt-2 text-slate-400 text-sm space-y-1">
+                        <li>• Analyzing your current portfolio</li>
+                        <li>• Suggesting new investments based on your cash and risk profile</li>
+                        <li>• Explaining stock recommendations</li>
+                        <li>• Building a diversified portfolio</li>
+                    </ul>
+                    <p class="mt-3 text-slate-300">What would you like to know?</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Example Questions -->
+        <div class="mb-4">
+            <p class="text-xs text-slate-500 mb-2">Try asking:</p>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="askQuestion('What should I do with my portfolio?')" class="px-3 py-1.5 text-xs rounded-lg bg-slate-700 hover:bg-slate-600 transition">
+                    What should I do with my portfolio?
+                </button>
+                <button onclick="askQuestion('Suggest stocks to buy with my available cash')" class="px-3 py-1.5 text-xs rounded-lg bg-slate-700 hover:bg-slate-600 transition">
+                    Suggest stocks to buy
+                </button>
+                <button onclick="askQuestion('Build me a diversified portfolio with CHF 10000')" class="px-3 py-1.5 text-xs rounded-lg bg-slate-700 hover:bg-slate-600 transition">
+                    Build a CHF 10k portfolio
+                </button>
+                <button onclick="askQuestion('Analyze AAPL and NVDA for me')" class="px-3 py-1.5 text-xs rounded-lg bg-slate-700 hover:bg-slate-600 transition">
+                    Analyze AAPL and NVDA
+                </button>
+            </div>
+        </div>
+        
+        <!-- Input Form -->
+        <form id="chatForm" class="flex gap-3">
+            <input 
+                type="text" 
+                id="messageInput"
+                name="message" 
+                placeholder="Ask about your portfolio, stock suggestions, or market analysis..."
+                class="flex-1 px-4 py-3 rounded-lg text-base"
+                {% if not ai_configured %}disabled{% endif %}
+            >
+            <button 
+                type="submit" 
+                id="sendButton"
+                class="btn-primary px-6 py-3 rounded-lg font-medium text-white disabled:opacity-50"
+                {% if not ai_configured %}disabled{% endif %}
+            >
+                <span id="sendText">Send</span>
+                <span id="sendLoading" class="hidden">
+                    <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </span>
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+const chatMessages = document.getElementById('chatMessages');
+const chatForm = document.getElementById('chatForm');
+const messageInput = document.getElementById('messageInput');
+const sendButton = document.getElementById('sendButton');
+const sendText = document.getElementById('sendText');
+const sendLoading = document.getElementById('sendLoading');
+
+function addMessage(content, isUser = false) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'flex gap-3';
+    
+    if (isUser) {
+        messageDiv.innerHTML = `
+            <div class="w-8 h-8 rounded-lg bg-slate-600 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                </svg>
+            </div>
+            <div class="bg-sky-500/20 border border-sky-500/30 rounded-lg p-4 flex-1">
+                <p class="text-slate-200">${escapeHtml(content)}</p>
+            </div>
+        `;
+    } else {
+        messageDiv.innerHTML = `
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-400 to-indigo-500 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                </svg>
+            </div>
+            <div class="bg-slate-800 rounded-lg p-4 flex-1">
+                <div class="text-slate-300 whitespace-pre-wrap">${formatResponse(content)}</div>
+            </div>
+        `;
+    }
+    
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function formatResponse(text) {
+    // Convert markdown-style formatting
+    let formatted = escapeHtml(text);
+    
+    // Bold
+    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // Headers
+    formatted = formatted.replace(/^### (.*$)/gm, '<h4 class="font-bold text-lg mt-3 mb-1">$1</h4>');
+    formatted = formatted.replace(/^## (.*$)/gm, '<h3 class="font-bold text-xl mt-4 mb-2">$1</h3>');
+    
+    // Lists
+    formatted = formatted.replace(/^- (.*$)/gm, '<li class="ml-4">• $1</li>');
+    formatted = formatted.replace(/^\d+\. (.*$)/gm, '<li class="ml-4">$1</li>');
+    
+    return formatted;
+}
+
+function setLoading(loading) {
+    sendButton.disabled = loading;
+    messageInput.disabled = loading;
+    sendText.classList.toggle('hidden', loading);
+    sendLoading.classList.toggle('hidden', !loading);
+}
+
+async function sendMessage(message) {
+    if (!message.trim()) return;
+    
+    addMessage(message, true);
+    messageInput.value = '';
+    setLoading(true);
+    
+    try {
+        const formData = new FormData();
+        formData.append('message', message);
+        
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            addMessage('Error: ' + data.error);
+        } else {
+            addMessage(data.response);
+        }
+    } catch (error) {
+        addMessage('Sorry, there was an error communicating with the AI. Please try again.');
+    } finally {
+        setLoading(false);
+        messageInput.focus();
+    }
+}
+
+function askQuestion(question) {
+    messageInput.value = question;
+    sendMessage(question);
+}
+
+chatForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    sendMessage(messageInput.value);
+});
+</script>
+{% endblock %}

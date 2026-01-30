@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}{{ ticker }} Analysis - Stock Trading Assistant{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <div class="flex items-center gap-3">
+                <h1 class="text-3xl font-bold">{{ ticker }}</h1>
+                {% if exchange %}<span class="text-slate-400">{{ exchange }}</span>{% endif %}
+            </div>
+            {% if analysis.name %}<p class="text-slate-400">{{ analysis.name }}</p>{% endif %}
+        </div>
+        <a href="/" class="text-sm text-sky-400 hover:text-sky-300">← Back to Dashboard</a>
+    </div>
+    
+    {% if analysis.error %}
+    <div class="card p-8 text-center">
+        <div class="text-red-400 mb-4">
+            <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+        </div>
+        <h2 class="text-xl font-semibold mb-2">Analysis Error</h2>
+        <p class="text-slate-400">{{ analysis.error }}</p>
+    </div>
+    {% else %}
+    
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="card card-highlight p-6">
+            <div class="text-sm text-slate-400 mb-1">Current Price</div>
+            <div class="stat-value text-3xl font-bold">{{ analysis.currency }} {{ "{:.2f}".format(analysis.current_price) }}</div>
+            <div class="text-slate-400 mt-1">CHF {{ "{:.2f}".format(analysis.price_chf) }}</div>
+        </div>
+        
+        <div class="card p-6">
+            <div class="text-sm text-slate-400 mb-2">Recommendation</div>
+            <div class="flex items-center gap-4 mb-4">
+                <div class="w-16 h-16 rounded-xl flex items-center justify-center text-2xl font-bold
+                    {% if analysis.recommendation in ['STRONG_BUY', 'BUY'] %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/30
+                    {% elif analysis.recommendation in ['STRONG_SELL', 'SELL'] %}bg-red-500/20 text-red-400 border border-red-500/30
+                    {% else %}bg-amber-500/20 text-amber-400 border border-amber-500/30{% endif %}">
+                    {% if analysis.recommendation == 'STRONG_BUY' %}↑↑
+                    {% elif analysis.recommendation == 'BUY' %}↑
+                    {% elif analysis.recommendation == 'STRONG_SELL' %}↓↓
+                    {% elif analysis.recommendation == 'SELL' %}↓
+                    {% else %}→{% endif %}
+                </div>
+                <div>
+                    <div class="text-2xl font-bold {% if analysis.recommendation in ['STRONG_BUY', 'BUY'] %}text-emerald-400{% elif analysis.recommendation in ['STRONG_SELL', 'SELL'] %}text-red-400{% else %}text-amber-400{% endif %}">
+                        {{ analysis.recommendation.replace('_', ' ') }}
+                    </div>
+                    <div class="text-sm text-slate-400">Risk: {{ analysis.risk_category }}</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card p-6">
+            <div class="text-sm text-slate-400 mb-2">Combined Score</div>
+            <div class="stat-value text-5xl font-bold gradient-text">{{ "{:.0f}".format(analysis.combined_score) }}</div>
+            <div class="text-sm text-slate-400 mt-2">out of 100</div>
+        </div>
+    </div>
+
+    <div class="card p-6">
+        <h2 class="text-lg font-semibold mb-3">Analysis Reasoning</h2>
+        <p class="text-slate-300">{{ analysis.reasoning }}</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="card p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-semibold">Technical</h3>
+                <span class="stat-value text-2xl font-bold {% if analysis.technical.score >= 60 %}text-emerald-400{% elif analysis.technical.score <= 40 %}text-red-400{% else %}text-amber-400{% endif %}">
+                    {{ "{:.0f}".format(analysis.technical.score) }}
+                </span>
+            </div>
+            {% if analysis.technical.signals %}
+            <ul class="space-y-2 text-sm">
+                {% for cat, signal in analysis.technical.signals[:5] %}
+                <li class="flex items-start gap-2">
+                    <span class="text-slate-500">•</span>
+                    <span class="text-slate-300">{{ signal }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+        
+        <div class="card p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-semibold">Fundamental</h3>
+                <span class="stat-value text-2xl font-bold {% if analysis.fundamental.score >= 60 %}text-emerald-400{% elif analysis.fundamental.score <= 40 %}text-red-400{% else %}text-amber-400{% endif %}">
+                    {{ "{:.0f}".format(analysis.fundamental.score) }}
+                </span>
+            </div>
+            {% if analysis.fundamental.signals %}
+            <ul class="space-y-2 text-sm">
+                {% for cat, signal in analysis.fundamental.signals[:5] %}
+                <li class="flex items-start gap-2">
+                    <span class="text-slate-500">•</span>
+                    <span class="text-slate-300">{{ signal }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+        
+        <div class="card p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-semibold">Sentiment</h3>
+                <span class="stat-value text-2xl font-bold {% if analysis.sentiment.score >= 60 %}text-emerald-400{% elif analysis.sentiment.score <= 40 %}text-red-400{% else %}text-amber-400{% endif %}">
+                    {{ "{:.0f}".format(analysis.sentiment.score) }}
+                </span>
+            </div>
+            {% if analysis.sentiment.signals %}
+            <ul class="space-y-2 text-sm">
+                {% for cat, signal in analysis.sentiment.signals[:5] %}
+                <li class="flex items-start gap-2">
+                    <span class="text-slate-500">•</span>
+                    <span class="text-slate-300">{{ signal }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if analysis.action %}
+    <div class="card p-6 border-2 {% if analysis.action.action in ['STRONG_BUY', 'BUY'] %}border-emerald-500/30{% elif analysis.action.action in ['STRONG_SELL', 'SELL'] %}border-red-500/30{% else %}border-slate-700{% endif %}">
+        <h2 class="text-lg font-semibold mb-4">Suggested Action</h2>
+        {% if analysis.action.shares and analysis.action.shares != 0 %}
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+                <div class="text-sm text-slate-400">Action</div>
+                <div class="font-bold {% if analysis.action.shares > 0 %}text-emerald-400{% else %}text-red-400{% endif %}">
+                    {% if analysis.action.shares > 0 %}Buy{% else %}Sell{% endif %} {{ "{:.0f}".format(analysis.action.shares|abs) }} shares
+                </div>
+            </div>
+            <div>
+                <div class="text-sm text-slate-400">Value</div>
+                <div class="stat-value font-bold">CHF {{ "{:.2f}".format(analysis.action.value_chf) }}</div>
+            </div>
+            {% if analysis.action.stop_loss %}
+            <div>
+                <div class="text-sm text-slate-400">Stop-Loss</div>
+                <div class="stat-value text-red-400">{{ analysis.currency }} {{ "{:.2f}".format(analysis.action.stop_loss) }}</div>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="text-slate-400">{{ analysis.action.reason or 'Hold current position - no action recommended.' }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    <div class="text-sm text-slate-500 text-center">
+        Analysis generated at {{ analysis.analyzed_at[:19] }} UTC
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

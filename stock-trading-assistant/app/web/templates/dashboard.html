@@ -1,0 +1,353 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Stock Trading Assistant{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header with Status -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold">Portfolio Dashboard</h1>
+            <p class="text-slate-400 text-sm">Track your holdings and recommendations</p>
+        </div>
+        
+        <div class="flex items-center gap-3">
+            <!-- System Status Toggle -->
+            <form action="/settings/toggle-active" method="POST" class="inline">
+                <button type="submit" class="flex items-center gap-2 px-4 py-2 rounded-lg {% if is_active %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/30{% else %}bg-amber-500/20 text-amber-400 border border-amber-500/30{% endif %}">
+                    <span class="w-2 h-2 rounded-full {% if is_active %}bg-emerald-400 pulse-dot{% else %}bg-amber-400{% endif %}"></span>
+                    {% if is_active %}Active{% else %}Paused{% endif %}
+                </button>
+            </form>
+            
+            <!-- Manual Check Button -->
+            <form action="/run-check" method="POST" class="inline">
+                <button type="submit" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm transition">
+                    Run Check
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Portfolio Summary Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Total Value -->
+        <div class="card card-highlight p-6">
+            <div class="text-sm text-slate-400 mb-1">Total Portfolio</div>
+            <div class="stat-value text-3xl font-bold gradient-text">
+                CHF {{ "{:,.2f}".format(portfolio.total_value_chf) }}
+            </div>
+            <div class="mt-2 text-sm {% if portfolio.unrealized_pnl_pct >= 0 %}positive{% else %}negative{% endif %}">
+                {% if portfolio.unrealized_pnl_pct >= 0 %}+{% endif %}{{ "{:.2f}".format(portfolio.unrealized_pnl_pct) }}% unrealized
+            </div>
+        </div>
+        
+        <!-- Holdings Value -->
+        <div class="card p-6">
+            <div class="text-sm text-slate-400 mb-1">Holdings Value</div>
+            <div class="stat-value text-2xl font-bold">
+                CHF {{ "{:,.2f}".format(portfolio.holdings_value_chf) }}
+            </div>
+            <div class="mt-2 text-sm text-slate-500">
+                {{ portfolio.holdings|length }} position{% if portfolio.holdings|length != 1 %}s{% endif %}
+            </div>
+        </div>
+        
+        <!-- Cash -->
+        <div class="card p-6">
+            <div class="text-sm text-slate-400 mb-1">Cash Available</div>
+            <div class="stat-value text-2xl font-bold">
+                CHF {{ "{:,.2f}".format(portfolio.cash_chf) }}
+            </div>
+            <div class="mt-2 text-sm text-slate-500">
+                {{ "{:.1f}".format(allocation.cash) }}% of portfolio
+            </div>
+        </div>
+        
+        <!-- Daily Recommendations -->
+        <div class="card p-6">
+            <div class="text-sm text-slate-400 mb-1">Today's Recommendations</div>
+            <div class="stat-value text-2xl font-bold">
+                {{ daily_recommendation_count }} / {{ max_daily_recommendations }}
+            </div>
+            <div class="mt-2 text-sm {% if email_configured %}text-emerald-400{% else %}text-amber-400{% endif %}">
+                {% if email_configured %}Email configured{% else %}Email not configured{% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Allocation & Performance Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Allocation Breakdown -->
+        <div class="card p-6">
+            <h2 class="text-lg font-semibold mb-4">Risk Allocation</h2>
+            
+            <div class="space-y-4">
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-slate-400">Moderate (Target: 70%)</span>
+                        <span class="stat-value">{{ "{:.1f}".format(allocation.moderate) }}%</span>
+                    </div>
+                    <div class="h-2 bg-slate-700 rounded-full overflow-hidden">
+                        <div class="h-full bg-sky-500 rounded-full" style="width: {{ allocation.moderate }}%"></div>
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-slate-400">Aggressive (Target: 30%)</span>
+                        <span class="stat-value">{{ "{:.1f}".format(allocation.aggressive) }}%</span>
+                    </div>
+                    <div class="h-2 bg-slate-700 rounded-full overflow-hidden">
+                        <div class="h-full bg-purple-500 rounded-full" style="width: {{ allocation.aggressive }}%"></div>
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-slate-400">Conservative</span>
+                        <span class="stat-value">{{ "{:.1f}".format(allocation.conservative) }}%</span>
+                    </div>
+                    <div class="h-2 bg-slate-700 rounded-full overflow-hidden">
+                        <div class="h-full bg-emerald-500 rounded-full" style="width: {{ allocation.conservative }}%"></div>
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-slate-400">Cash</span>
+                        <span class="stat-value">{{ "{:.1f}".format(allocation.cash) }}%</span>
+                    </div>
+                    <div class="h-2 bg-slate-700 rounded-full overflow-hidden">
+                        <div class="h-full bg-slate-500 rounded-full" style="width: {{ allocation.cash }}%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Performance Chart -->
+        <div class="card p-6 lg:col-span-2">
+            <h2 class="text-lg font-semibold mb-4">Portfolio Performance</h2>
+            <div class="h-64">
+                <canvas id="performanceChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Holdings Table -->
+    <div class="card p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold">Current Holdings</h2>
+            <a href="/holdings" class="text-sm text-sky-400 hover:text-sky-300">Manage →</a>
+        </div>
+        
+        {% if portfolio.holdings %}
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr class="text-left text-sm text-slate-400 border-b border-slate-700">
+                        <th class="pb-3 font-medium">Ticker</th>
+                        <th class="pb-3 font-medium">Shares</th>
+                        <th class="pb-3 font-medium">Price</th>
+                        <th class="pb-3 font-medium">Value (CHF)</th>
+                        <th class="pb-3 font-medium">P&L</th>
+                        <th class="pb-3 font-medium">Daily</th>
+                        <th class="pb-3 font-medium">Risk</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-700/50">
+                    {% for holding in portfolio.holdings %}
+                    <tr class="hover:bg-slate-800/30">
+                        <td class="py-3">
+                            <a href="/analyze/{{ holding.ticker }}?exchange={{ holding.exchange }}" class="font-medium hover:text-sky-400">
+                                {{ holding.ticker }}
+                            </a>
+                            <span class="text-xs text-slate-500 ml-1">{{ holding.exchange }}</span>
+                        </td>
+                        <td class="py-3 stat-value">{{ "{:,.0f}".format(holding.shares) }}</td>
+                        <td class="py-3 stat-value">
+                            {% if holding.current_price %}
+                            {{ holding.current_currency }} {{ "{:.2f}".format(holding.current_price) }}
+                            {% else %}
+                            --
+                            {% endif %}
+                        </td>
+                        <td class="py-3 stat-value font-medium">{{ "{:,.2f}".format(holding.current_value_chf) }}</td>
+                        <td class="py-3 stat-value {% if holding.unrealized_pnl_chf >= 0 %}positive{% else %}negative{% endif %}">
+                            {% if holding.unrealized_pnl_chf >= 0 %}+{% endif %}{{ "{:.2f}".format(holding.unrealized_pnl_chf) }}
+                            <span class="text-xs">({{ "{:.1f}".format(holding.unrealized_pnl_pct) }}%)</span>
+                        </td>
+                        <td class="py-3 stat-value {% if holding.daily_change_pct and holding.daily_change_pct >= 0 %}positive{% elif holding.daily_change_pct %}negative{% else %}neutral{% endif %}">
+                            {% if holding.daily_change_pct %}
+                            {% if holding.daily_change_pct >= 0 %}+{% endif %}{{ "{:.2f}".format(holding.daily_change_pct) }}%
+                            {% else %}
+                            --
+                            {% endif %}
+                        </td>
+                        <td class="py-3">
+                            <span class="px-2 py-1 rounded text-xs {% if holding.risk_category == 'aggressive' %}bg-purple-500/20 text-purple-400{% elif holding.risk_category == 'conservative' %}bg-emerald-500/20 text-emerald-400{% else %}bg-sky-500/20 text-sky-400{% endif %}">
+                                {{ holding.risk_category }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-8 text-slate-400">
+            <p>No holdings yet.</p>
+            <a href="/holdings" class="text-sky-400 hover:text-sky-300">Add your first holding →</a>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Recent Recommendations -->
+    <div class="card p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold">Recent Recommendations</h2>
+            <a href="/recommendations" class="text-sm text-sky-400 hover:text-sky-300">View all →</a>
+        </div>
+        
+        {% if recommendations %}
+        <div class="space-y-3">
+            {% for rec in recommendations[:5] %}
+            <div class="flex items-center justify-between p-4 rounded-lg bg-slate-800/50 hover:bg-slate-800 transition">
+                <div class="flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-lg flex items-center justify-center text-lg font-bold
+                        {% if rec.recommendation_type.value in ['STRONG_BUY', 'BUY'] %}bg-emerald-500/20 text-emerald-400
+                        {% elif rec.recommendation_type.value in ['STRONG_SELL', 'SELL'] %}bg-red-500/20 text-red-400
+                        {% else %}bg-amber-500/20 text-amber-400{% endif %}">
+                        {% if rec.recommendation_type.value == 'STRONG_BUY' %}↑↑
+                        {% elif rec.recommendation_type.value == 'BUY' %}↑
+                        {% elif rec.recommendation_type.value == 'STRONG_SELL' %}↓↓
+                        {% elif rec.recommendation_type.value == 'SELL' %}↓
+                        {% else %}→{% endif %}
+                    </div>
+                    <div>
+                        <div class="font-medium">
+                            <span class="{% if rec.recommendation_type.value in ['STRONG_BUY', 'BUY'] %}text-emerald-400{% elif rec.recommendation_type.value in ['STRONG_SELL', 'SELL'] %}text-red-400{% else %}text-amber-400{% endif %}">
+                                {{ rec.recommendation_type.value.replace('_', ' ') }}
+                            </span>
+                            {{ rec.ticker }}
+                        </div>
+                        <div class="text-sm text-slate-400">
+                            {{ rec.price_currency }} {{ "{:.2f}".format(rec.price_at_recommendation) }} • Score: {{ "{:.0f}".format(rec.combined_score) }}
+                        </div>
+                    </div>
+                </div>
+                <div class="text-right text-sm">
+                    <div class="text-slate-400">{{ rec.created_at.strftime('%b %d, %H:%M') }}</div>
+                    <div class="{% if rec.email_sent %}text-emerald-400{% else %}text-slate-500{% endif %}">
+                        {% if rec.email_sent %}Sent{% else %}Not sent{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-8 text-slate-400">
+            <p>No recommendations yet.</p>
+            <p class="text-sm mt-1">The system will generate recommendations during market checks.</p>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Test Email Section -->
+    {% if email_configured %}
+    <div class="card p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h2 class="text-lg font-semibold">Email Notifications</h2>
+                <p class="text-sm text-slate-400">Email is configured and ready to send recommendations.</p>
+            </div>
+            <form action="/settings/test-email" method="POST">
+                <button type="submit" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm transition">
+                    Send Test Email
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Performance Chart
+    const performanceData = {{ performance | safe }};
+    
+    if (performanceData && performanceData.length > 0) {
+        const ctx = document.getElementById('performanceChart').getContext('2d');
+        
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: performanceData.map(d => {
+                    const date = new Date(d.date);
+                    return date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
+                }),
+                datasets: [{
+                    label: 'Portfolio Value (CHF)',
+                    data: performanceData.map(d => d.total_value_chf),
+                    borderColor: '#0ea5e9',
+                    backgroundColor: 'rgba(14, 165, 233, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index',
+                },
+                plugins: {
+                    legend: {
+                        display: false,
+                    },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        borderColor: '#334155',
+                        borderWidth: 1,
+                        titleColor: '#f1f5f9',
+                        bodyColor: '#94a3b8',
+                        callbacks: {
+                            label: function(context) {
+                                return 'CHF ' + context.raw.toLocaleString('de-CH', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                });
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            display: false,
+                        },
+                        ticks: {
+                            color: '#64748b',
+                        }
+                    },
+                    y: {
+                        grid: {
+                            color: 'rgba(148, 163, 184, 0.1)',
+                        },
+                        ticks: {
+                            color: '#64748b',
+                            callback: function(value) {
+                                return 'CHF ' + value.toLocaleString('de-CH');
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}

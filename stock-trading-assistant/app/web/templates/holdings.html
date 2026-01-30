@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block title %}Holdings - Stock Trading Assistant{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold">Manage Holdings</h1>
+            <p class="text-slate-400 text-sm">Add, update, or remove your portfolio positions</p>
+        </div>
+    </div>
+    
+    <!-- Add New Holding Form -->
+    <div class="card p-6">
+        <h2 class="text-lg font-semibold mb-4">Add New Holding</h2>
+        
+        <form action="/holdings/add" method="POST" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+                <label class="block text-sm text-slate-400 mb-1">Ticker Symbol</label>
+                <input type="text" name="ticker" required placeholder="e.g., AAPL" 
+                       class="w-full px-3 py-2 rounded-lg uppercase">
+            </div>
+            
+            <div>
+                <label class="block text-sm text-slate-400 mb-1">Exchange</label>
+                <select name="exchange" required class="w-full px-3 py-2 rounded-lg">
+                    <option value="">Select exchange...</option>
+                    <option value="NYSE">NYSE (US)</option>
+                    <option value="NASDAQ">NASDAQ (US)</option>
+                    <option value="TSX">TSX (Canada)</option>
+                    <option value="TSX-V">TSX Venture (Canada)</option>
+                    <option value="SIX">SIX (Switzerland)</option>
+                    <option value="LSE">LSE (UK)</option>
+                    <option value="XETRA">XETRA (Germany)</option>
+                </select>
+            </div>
+            
+            <div>
+                <label class="block text-sm text-slate-400 mb-1">Number of Shares</label>
+                <input type="number" name="shares" required step="0.01" min="0" placeholder="100"
+                       class="w-full px-3 py-2 rounded-lg">
+            </div>
+            
+            <div>
+                <label class="block text-sm text-slate-400 mb-1">Purchase Price</label>
+                <input type="number" name="purchase_price" required step="0.01" min="0" placeholder="150.00"
+                       class="w-full px-3 py-2 rounded-lg">
+            </div>
+            
+            <div>
+                <label class="block text-sm text-slate-400 mb-1">Currency</label>
+                <select name="purchase_currency" required class="w-full px-3 py-2 rounded-lg">
+                    <option value="USD">USD</option>
+                    <option value="CHF">CHF</option>
+                    <option value="EUR">EUR</option>
+                    <option value="CAD">CAD</option>
+                    <option value="GBP">GBP</option>
+                </select>
+            </div>
+            
+            <div>
+                <label class="block text-sm text-slate-400 mb-1">Purchase Date</label>
+                <input type="date" name="purchase_date" required 
+                       class="w-full px-3 py-2 rounded-lg">
+            </div>
+            
+            <div>
+                <label class="block text-sm text-slate-400 mb-1">Risk Category</label>
+                <select name="risk_category" class="w-full px-3 py-2 rounded-lg">
+                    <option value="moderate">Moderate</option>
+                    <option value="aggressive">Aggressive</option>
+                    <option value="conservative">Conservative</option>
+                </select>
+            </div>
+            
+            <div>
+                <label class="block text-sm text-slate-400 mb-1">Notes (optional)</label>
+                <input type="text" name="notes" placeholder="Any notes..."
+                       class="w-full px-3 py-2 rounded-lg">
+            </div>
+            
+            <div class="md:col-span-2 lg:col-span-4">
+                <button type="submit" class="btn-primary px-6 py-2 rounded-lg font-medium text-white">
+                    Add Holding
+                </button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Cash Balance Management -->
+    <div class="card p-6">
+        <h2 class="text-lg font-semibold mb-4">Cash Balances</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Current Balances -->
+            <div>
+                <h3 class="text-sm text-slate-400 mb-3">Current Balances</h3>
+                {% if cash_balances %}
+                <div class="space-y-2">
+                    {% for balance in cash_balances %}
+                    <div class="flex justify-between items-center p-3 rounded-lg bg-slate-800/50">
+                        <span class="font-medium">{{ balance.currency }}</span>
+                        <span class="stat-value">{{ "{:,.2f}".format(balance.amount) }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-slate-500">No cash balances set.</p>
+                {% endif %}
+            </div>
+            
+            <!-- Set Balance Form -->
+            <div>
+                <h3 class="text-sm text-slate-400 mb-3">Set Cash Balance</h3>
+                <form action="/cash/set" method="POST" class="space-y-3">
+                    <div class="flex gap-3">
+                        <input type="number" name="amount" step="0.01" min="0" placeholder="Amount"
+                               class="flex-1 px-3 py-2 rounded-lg">
+                        <select name="currency" class="px-3 py-2 rounded-lg">
+                            <option value="CHF">CHF</option>
+                            <option value="USD">USD</option>
+                            <option value="EUR">EUR</option>
+                            <option value="CAD">CAD</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition">
+                        Set Balance
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Exchange Rates -->
+        <div class="mt-6 pt-6 border-t border-slate-700">
+            <h3 class="text-sm text-slate-400 mb-3">Current Exchange Rates (to CHF)</h3>
+            <div class="flex flex-wrap gap-3">
+                {% for currency, rate in exchange_rates.items() %}
+                {% if currency != 'CHF' %}
+                <div class="px-3 py-2 rounded-lg bg-slate-800/50 text-sm">
+                    <span class="text-slate-400">{{ currency }}:</span>
+                    <span class="stat-value ml-1">{{ "{:.4f}".format(rate) }}</span>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Holdings Table -->
+    <div class="card p-6">
+        <h2 class="text-lg font-semibold mb-4">Current Holdings</h2>
+        
+        {% if portfolio.holdings %}
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr class="text-left text-sm text-slate-400 border-b border-slate-700">
+                        <th class="pb-3 font-medium">Ticker</th>
+                        <th class="pb-3 font-medium">Exchange</th>
+                        <th class="pb-3 font-medium">Shares</th>
+                        <th class="pb-3 font-medium">Avg Cost</th>
+                        <th class="pb-3 font-medium">Current</th>
+                        <th class="pb-3 font-medium">Value (CHF)</th>
+                        <th class="pb-3 font-medium">P&L</th>
+                        <th class="pb-3 font-medium">Risk</th>
+                        <th class="pb-3 font-medium">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-700/50">
+                    {% for holding in portfolio.holdings %}
+                    <tr class="hover:bg-slate-800/30">
+                        <td class="py-4">
+                            <a href="/analyze/{{ holding.ticker }}?exchange={{ holding.exchange }}" 
+                               class="font-medium hover:text-sky-400">
+                                {{ holding.ticker }}
+                            </a>
+                        </td>
+                        <td class="py-4 text-slate-400">{{ holding.exchange }}</td>
+                        <td class="py-4 stat-value">{{ "{:,.2f}".format(holding.shares) }}</td>
+                        <td class="py-4 stat-value text-slate-400">
+                            {{ holding.purchase_currency }} {{ "{:.2f}".format(holding.purchase_price) }}
+                        </td>
+                        <td class="py-4 stat-value">
+                            {% if holding.current_price %}
+                            {{ holding.current_currency }} {{ "{:.2f}".format(holding.current_price) }}
+                            {% else %}
+                            --
+                            {% endif %}
+                        </td>
+                        <td class="py-4 stat-value font-medium">
+                            {{ "{:,.2f}".format(holding.current_value_chf) }}
+                        </td>
+                        <td class="py-4">
+                            <span class="stat-value {% if holding.unrealized_pnl_chf >= 0 %}positive{% else %}negative{% endif %}">
+                                {% if holding.unrealized_pnl_chf >= 0 %}+{% endif %}{{ "{:.2f}".format(holding.unrealized_pnl_chf) }}
+                            </span>
+                            <span class="text-xs text-slate-500 block">
+                                ({{ "{:.1f}".format(holding.unrealized_pnl_pct) }}%)
+                            </span>
+                        </td>
+                        <td class="py-4">
+                            <span class="px-2 py-1 rounded text-xs 
+                                {% if holding.risk_category == 'aggressive' %}bg-purple-500/20 text-purple-400
+                                {% elif holding.risk_category == 'conservative' %}bg-emerald-500/20 text-emerald-400
+                                {% else %}bg-sky-500/20 text-sky-400{% endif %}">
+                                {{ holding.risk_category }}
+                            </span>
+                        </td>
+                        <td class="py-4">
+                            <div class="flex items-center gap-2">
+                                <button onclick="openEditModal('{{ holding.ticker }}', {{ holding.shares }}, {{ holding.purchase_price }}, '{{ holding.risk_category }}')"
+                                        class="px-3 py-1 rounded text-sm bg-slate-700 hover:bg-slate-600 transition">
+                                    Edit
+                                </button>
+                                <form action="/holdings/delete/{{ holding.ticker }}" method="POST" 
+                                      onsubmit="return confirm('Delete {{ holding.ticker }}?')">
+                                    <button type="submit" class="px-3 py-1 rounded text-sm bg-red-500/20 text-red-400 hover:bg-red-500/30 transition">
+                                        Delete
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-8 text-slate-400">
+            <p>No holdings yet. Add your first position above.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="editModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50">
+    <div class="card p-6 w-full max-w-md mx-4">
+        <h3 class="text-lg font-semibold mb-4">Edit Holding: <span id="editTicker"></span></h3>
+        
+        <form id="editForm" method="POST" class="space-y-4">
+            <div>
+                <label class="block text-sm text-slate-400 mb-1">Shares</label>
+                <input type="number" name="shares" id="editShares" step="0.01" min="0"
+                       class="w-full px-3 py-2 rounded-lg">
+            </div>
+            
+            <div>
+                <label class="block text-sm text-slate-400 mb-1">Purchase Price</label>
+                <input type="number" name="purchase_price" id="editPrice" step="0.01" min="0"
+                       class="w-full px-3 py-2 rounded-lg">
+            </div>
+            
+            <div>
+                <label class="block text-sm text-slate-400 mb-1">Risk Category</label>
+                <select name="risk_category" id="editRisk" class="w-full px-3 py-2 rounded-lg">
+                    <option value="moderate">Moderate</option>
+                    <option value="aggressive">Aggressive</option>
+                    <option value="conservative">Conservative</option>
+                </select>
+            </div>
+            
+            <div>
+                <label class="block text-sm text-slate-400 mb-1">Notes</label>
+                <input type="text" name="notes" id="editNotes" placeholder="Optional notes..."
+                       class="w-full px-3 py-2 rounded-lg">
+            </div>
+            
+            <div class="flex gap-3 pt-2">
+                <button type="submit" class="btn-primary flex-1 px-4 py-2 rounded-lg font-medium text-white">
+                    Save Changes
+                </button>
+                <button type="button" onclick="closeEditModal()" 
+                        class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition">
+                    Cancel
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openEditModal(ticker, shares, price, risk) {
+        document.getElementById('editTicker').textContent = ticker;
+        document.getElementById('editShares').value = shares;
+        document.getElementById('editPrice').value = price;
+        document.getElementById('editRisk').value = risk;
+        document.getElementById('editForm').action = '/holdings/update/' + ticker;
+        document.getElementById('editModal').classList.remove('hidden');
+        document.getElementById('editModal').classList.add('flex');
+    }
+    
+    function closeEditModal() {
+        document.getElementById('editModal').classList.add('hidden');
+        document.getElementById('editModal').classList.remove('flex');
+    }
+    
+    // Close modal on background click
+    document.getElementById('editModal').addEventListener('click', function(e) {
+        if (e.target === this) closeEditModal();
+    });
+</script>
+{% endblock %}
